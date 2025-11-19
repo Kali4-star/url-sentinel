@@ -35,16 +35,19 @@ class URLAnalyzer:
         if not self._validate_structure():
             return
             
-        # 2. Character & Homograph Analysis
+        # 2. Typosquatting / Leetspeak (NEW FEATURE)
+        self._check_typosquatting()
+
+        # 3. Character & Homograph Analysis
         self._check_homographs()
         
-        # 3. Encoding Analysis
+        # 4. Encoding Analysis
         self._check_encoding()
 
-        # 4. Heuristic Analysis
+        # 5. Heuristic Analysis
         self._check_heuristics()
 
-        # 5. Entropy Analysis
+        # 6. Entropy Analysis
         self._check_entropy()
 
         self._print_report()
@@ -61,15 +64,43 @@ class URLAnalyzer:
                 print(f"{Colors.FAIL}[!] Invalid URL structure.{Colors.ENDC}")
                 return False
             
-            domain_clean = self.domain.split(':')[0]
-            domain_regex = r"^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}$"
-            
-            if not re.match(domain_regex, domain_clean) and not self._is_ip_address(domain_clean):
-                 self.findings.append((Colors.WARNING, "WARNING", "Domain structure looks unusual."))
-                 self.risk_score += 1
             return True
         except Exception:
             return False
+
+    def _check_typosquatting(self):
+        """
+        Detects if the domain is using numbers to fake letters (Leetspeak).
+        Example: micr0soft -> microsoft
+        """
+        domain_clean = self.domain.split(':')[0].lower()
+        
+        # Map of numbers/symbols to the letters they look like
+        leetspeak_map = {
+            '0': 'o', '1': 'l', '3': 'e', '4': 'a', 
+            '5': 's', '7': 't', '@': 'a', '$': 's'
+        }
+        
+        # Create a "normalized" version (convert 0 to o, 3 to e, etc.)
+        normalized_domain = domain_clean
+        for char, replacement in leetspeak_map.items():
+            normalized_domain = normalized_domain.replace(char, replacement)
+
+        # List of high-value targets often phished
+        targets = [
+            'google', 'microsoft', 'facebook', 'apple', 'amazon', 'netflix', 
+            'paypal', 'instagram', 'twitter', 'linkedin', 'adobe', 'yahoo',
+            'outlook', 'whatsapp', 'binance', 'coinbase', 'steam'
+        ]
+
+        # Check if the normalized version matches a famous brand
+        for target in targets:
+            if target in normalized_domain:
+                # If the normalized word is found, but it wasn't in the original...
+                # It means they used numbers to hide it!
+                if target not in domain_clean:
+                    self.findings.append((Colors.FAIL, "HIGH RISK", f"Typosquatting Detected: Mimics '{target}' (used '{domain_clean}')"))
+                    self.risk_score += 6
 
     def _is_ip_address(self, domain):
         try:
@@ -111,24 +142,16 @@ class URLAnalyzer:
             self.findings.append((Colors.WARNING, "SUSPICIOUS", "IP address used as domain."))
             self.risk_score += 2
 
-        if len(domain_clean.split('.')) > 4:
-            self.findings.append((Colors.WARNING, "SUSPICIOUS", "High number of subdomains."))
-            self.risk_score += 1
-
-        keywords = ['login', 'secure', 'account', 'update', 'verify', 'banking', 'bonus']
+        keywords = ['login', 'secure', 'account', 'update', 'verify', 'banking', 'bonus', 'support']
         if any(k in domain_clean.lower() for k in keywords):
             self.findings.append((Colors.WARNING, "SUSPICIOUS", "Sensitive keyword in domain."))
             self.risk_score += 2
-            
-        if '@' in self.url:
-             self.findings.append((Colors.FAIL, "HIGH RISK", "URL contains '@' symbol."))
-             self.risk_score += 4
 
     def _check_entropy(self):
         domain_clean = self.domain.split(':')[0]
         probs = [n_x / len(domain_clean) for n_x in Counter(domain_clean).values()]
         entropy = -sum(p * math.log(p, 2) for p in probs)
-        if entropy > 4.0:
+        if entropy > 4.2: # Slightly raised threshold
             self.findings.append((Colors.BLUE, "INFO", f"High Entropy ({entropy:.2f}). Possible generated domain."))
             self.risk_score += 1
 
@@ -159,7 +182,7 @@ def print_banner():
  | |_| |  _ <| |___   ___) | |___| |\  | | |  | || |\  | |___| |___ 
   \___/|_| \_\_____| |____/|_____|_| \_| |_| |___|_| \_|_____|_____|
     """)
-    print(f"{Colors.BLUE}        Defensive URL Static Analysis Tool for Kali Linux{Colors.ENDC}")
+    print(f"{Colors.BLUE}        Defensive URL Static Analysis Tool v2.0{Colors.ENDC}")
     print(f"{Colors.HEADER}================================================================{Colors.ENDC}")
 
 def analyze_single():
@@ -185,7 +208,7 @@ def analyze_file():
                     if url.strip():
                         analyzer = URLAnalyzer(url)
                         analyzer.analyze()
-                        time.sleep(0.5) # Small delay for readability
+                        time.sleep(0.5)
         except Exception as e:
             print(f"{Colors.FAIL}[!] Error reading file: {e}{Colors.ENDC}")
             
@@ -194,8 +217,8 @@ def analyze_file():
 def show_help():
     print(f"\n{Colors.BOLD}--- HELP / ABOUT ---{Colors.ENDC}")
     print("1. This tool performs static analysis on URLs.")
-    print("2. It does NOT connect to the URL, making it safe to run on malware links.")
-    print("3. It detects Homographs (Fake letters), High Entropy (Random names), and Phishing keywords.")
+    print("2. It checks for Typosquatting (e.g. micr0soft.com).")
+    print("3. It checks for IDN Homographs (Fake letters).")
     print("\nAuthor: URL Sentinel User")
     input(f"\n{Colors.CYAN}Press Enter to return to menu...{Colors.ENDC}")
 
