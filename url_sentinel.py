@@ -29,13 +29,13 @@ class URLAnalyzer:
         self.findings = []
 
     def analyze(self):
-        print(f"{Colors.CYAN}[*] Analyzing: {self.url}{Colors.ENDC}")
+        print(f"{Colors.CYAN}[*] Starting Analysis...{Colors.ENDC}")
         
         # 1. Basic Syntax
         if not self._validate_structure():
             return
             
-        # 2. Typosquatting / Leetspeak (NEW FEATURE)
+        # 2. Typosquatting / Leetspeak
         self._check_typosquatting()
 
         # 3. Character & Homograph Analysis
@@ -156,6 +156,28 @@ class URLAnalyzer:
             self.risk_score += 1
 
     def _print_report(self):
+        print(f"\n{Colors.HEADER}--- ANALYSIS REPORT ---{Colors.ENDC}")
+        
+        # --- NEW: Detailed URL Info Section ---
+        print(f"{Colors.BOLD}[+] URL Details:{Colors.ENDC}")
+        print(f"  • Protocol: {self.parsed.scheme.upper()}")
+        print(f"  • Domain:   {self.domain}")
+        
+        # Extract TLD (Top Level Domain)
+        parts = self.domain.split('.')
+        if len(parts) > 1:
+            print(f"  • TLD:      .{parts[-1]}")
+        
+        # Check for path and query parameters
+        if self.parsed.path and self.parsed.path != "/":
+            print(f"  • Path:     {self.parsed.path}")
+        if self.parsed.query:
+            print(f"  • Params:   {self.parsed.query}")
+        
+        print(f"  • Length:   {len(self.url)} chars")
+        print("-" * 40)
+        
+        # --- Existing Findings ---
         if not self.findings:
             print(f"{Colors.GREEN}[+] Verdict: CLEAN{Colors.ENDC}")
         else:
@@ -182,7 +204,7 @@ def print_banner():
  | |_| |  _ <| |___   ___) | |___| |\  | | |  | || |\  | |___| |___ 
   \___/|_| \_\_____| |____/|_____|_| \_| |_| |___|_| \_|_____|_____|
     """)
-    print(f"{Colors.BLUE}        Defensive URL Static Analysis Tool v2.0{Colors.ENDC}")
+    print(f"{Colors.BLUE}        Defensive URL Static Analysis Tool v2.1{Colors.ENDC}")
     print(f"{Colors.HEADER}================================================================{Colors.ENDC}")
 
 def analyze_single():
@@ -218,7 +240,7 @@ def show_help():
     print(f"\n{Colors.BOLD}--- HELP / ABOUT ---{Colors.ENDC}")
     print("1. This tool performs static analysis on URLs.")
     print("2. It checks for Typosquatting (e.g. micr0soft.com).")
-    print("3. It checks for IDN Homographs (Fake letters).")
+    print("3. It breaks down URL details (Protocol, Path, Params).")
     print("\nAuthor: URL Sentinel User")
     input(f"\n{Colors.CYAN}Press Enter to return to menu...{Colors.ENDC}")
 
